@@ -2,22 +2,25 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "sanjayharish/ultimate-cicd-pipeline:v1"
+        DOCKER_IMAGE = "sanjayharish/ultimate-cicd-pipeline"
+        IMAGE_TAG = "v1"
     }
 
     stages {
-        stage('Checkout Source Code') {
+        stage('Checkout Code') {
             steps {
-                echo "✔️ Using SCM checkout automatically"
+                echo '🔄 Checking out code...'
+                checkout scm
             }
         }
 
-        stage('Build Maven App') {
+        stage('Build with Maven') {
             steps {
+                echo '⚙️ Building the project with Maven...'
                 sh '''
                     docker run --rm \
-                    -v "$PWD":/usr/src/app \
-                    -w /usr/src/app \
+                    -v "$(pwd)":/usr/src/mymaven \
+                    -w /usr/src/mymaven \
                     maven:3.8.6-eclipse-temurin-17 \
                     mvn clean install
                 '''
@@ -26,23 +29,23 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                echo '🐳 Building Docker image...'
+                sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
             }
         }
 
         stage('Push Docker Image to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $DOCKER_IMAGE
-                    '''
+                echo '📤 Pushing Docker image to DockerHub...'
+                withDockerRegistry(credentialsId: 'dockerhub-cred', url: '') {
+                    sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
+                echo '🚀 Deploying to Kubernetes...'
                 sh '''
                     kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                     kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/service.yml
