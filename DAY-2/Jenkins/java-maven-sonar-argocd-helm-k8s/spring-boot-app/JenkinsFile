@@ -6,7 +6,8 @@ pipeline {
     }
   }
   environment {
-    APP_PATH = 'DAY-2/java-maven-sonar-argocd-helm-k8s/spring-boot-app'
+    APP_PATH = 'environment {
+  APP_PATH = 'java-maven-sonar-argocd-helm-k8s/spring-boot-app'
     DEPLOYMENT_PATH = 'DAY-2/java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml'
     SONAR_URL = "http://3.90.147.250:9000"
     DOCKER_IMAGE = "sanjayharish/ultimate-cicd:${BUILD_NUMBER}"
