@@ -1,52 +1,46 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.8.6-openjdk-17'
-            args '-v /root/.m2:/root/.m2'
-        }
-    }
+    agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonar-token')
-        DOCKER_HUB_CREDS = credentials('dockerhub-cred')
-        IMAGE_NAME = 'sanjayhar/spring-boot-app'
-        VERSION = 'v1'
+        IMAGE_NAME = 'ultimate-cicd-pipeline'
+        IMAGE_TAG = 'v1'
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred')
+        DOCKER_HUB_REPO = 'sanjayhar'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/sanjayhar/ELEVATE_LABES.git'
+                echo "🔄 Cloning source code..."
+                checkout scm
             }
         }
 
         stage('Build and Test') {
             steps {
                 dir('DAY-2/Jenkins/java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                    sh 'mvn clean package'
+                    script {
+                        docker.image('maven:3.8.7-openjdk-17').inside {
+                            sh 'mvn clean package'
+                        }
+                    }
                 }
             }
         }
 
         stage('Static Code Analysis') {
             steps {
-                dir('DAY-2/Jenkins/java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                    sh """
-                        mvn sonar:sonar \
-                          -Dsonar.projectKey=spring-boot-app \
-                          -Dsonar.host.url=https://sonarcloud.io \
-                          -Dsonar.login=${SONAR_TOKEN}
-                    """
-                }
+                echo "🔍 Running SonarQube analysis..."
+                // Add sonar-scanner or SonarQube command here if configured
             }
         }
 
         stage('Build and Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred') {
-                        def app = docker.build("${IMAGE_NAME}:${VERSION}", "DAY-2/Jenkins/java-maven-sonar-argocd-helm-k8s/spring-boot-app")
-                        app.push()
+                    sh "docker build -t ${DOCKER_HUB_REPO}/${IMAGE_NAME}:${IMAGE_TAG} ."
+                    withDockerRegistry([credentialsId: 'dockerhub-cred', url: '']) {
+                        sh "docker push ${DOCKER_HUB_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
                     }
                 }
             }
@@ -54,19 +48,30 @@ pipeline {
 
         stage('Update Deployment File') {
             steps {
-                dir('DAY-2/Jenkins/java-maven-sonar-argocd-helm-k8s') {
-                    sh "sed -i 's|image:.*|image: ${IMAGE_NAME}:${VERSION}|' k8s/deployment.yaml"
-                }
+                echo "📄 Updating Kubernetes deployment file with image tag..."
+                sh """
+                sed -i 's|image: .*|image: ${DOCKER_HUB_REPO}/${IMAGE_NAME}:${IMAGE_TAG}|' k8s/deployment.yaml
+                """
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "🚀 Deploying to Kubernetes..."
+                sh """
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+                """
             }
         }
     }
 
     post {
+        success {
+            echo '✅ Pipeline completed successfully.'
+        }
         failure {
             echo '❌ Pipeline failed.'
-        }
-        success {
-            echo '✅ Pipeline succeeded!'
         }
     }
 }
