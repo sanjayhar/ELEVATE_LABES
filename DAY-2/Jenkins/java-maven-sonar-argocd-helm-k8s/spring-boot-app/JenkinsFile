@@ -7,7 +7,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout Source Code') {
             steps {
                 echo '🔄 Checking out code...'
                 checkout scm
@@ -16,13 +16,13 @@ pipeline {
 
         stage('Build with Maven') {
             steps {
-                echo '⚙️ Building the project with Maven...'
+                echo '⚙️ Building with Maven using Docker image...'
                 sh '''
                     docker run --rm \
-                    -v "$(pwd)":/usr/src/mymaven \
-                    -w /usr/src/mymaven \
-                    maven:3.8.6-eclipse-temurin-17 \
-                    mvn clean install
+                      -v "$(pwd)/java-maven-sonar-argocd-helm-k8s/spring-boot-app":/usr/src/mymaven \
+                      -w /usr/src/mymaven \
+                      maven:3.8.6-eclipse-temurin-17 \
+                      mvn clean install
                 '''
             }
         }
@@ -30,7 +30,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo '🐳 Building Docker image...'
-                sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
+                sh """
+                  docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} java-maven-sonar-argocd-helm-k8s/spring-boot-app
+                """
             }
         }
 
@@ -47,8 +49,8 @@ pipeline {
             steps {
                 echo '🚀 Deploying to Kubernetes...'
                 sh '''
-                    kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                    kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/service.yml
+                  kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                  kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/service.yml
                 '''
             }
         }
