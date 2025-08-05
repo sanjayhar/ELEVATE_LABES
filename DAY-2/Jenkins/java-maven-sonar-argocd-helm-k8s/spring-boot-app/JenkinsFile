@@ -1,59 +1,57 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    APP_NAME = 'ultimate-cicd-pipeline'
-    APP_VERSION = 'v1'
-    DOCKER_IMAGE = "sanjayharish/${APP_NAME}:${APP_VERSION}"
-    APP_PATH = 'java-maven-sonar-argocd-helm-k8s/spring-boot-app'
-    DEPLOYMENT_PATH = 'java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml'
-  }
-
-  stages {
-    stage('Checkout Source Code') {
-      steps {
-        git 'https://github.com/sanjayhar/ELEVATE_LABES'
-      }
+    environment {
+        DOCKER_IMAGE = "sanjayharish/ultimate-cicd-pipeline:v1"
     }
 
-    stage('Build Maven App') {
-      steps {
-        dir("${APP_PATH}") {
-          sh 'mvn clean install'
+    stages {
+        stage('Checkout Source Code') {
+            steps {
+                echo "✔️ Using SCM checkout automatically"
+                // No need to manually git clone unless using different repo/branch
+            }
         }
-      }
-    }
 
-    stage('Build Docker Image') {
-      steps {
-        dir("${APP_PATH}") {
-          sh "docker build -t ${DOCKER_IMAGE} ."
+        stage('Build Maven App') {
+            steps {
+                sh 'mvn clean install'
+            }
         }
-      }
-    }
 
-    stage('Push Docker Image to DockerHub') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-          sh "docker push ${DOCKER_IMAGE}"
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $DOCKER_IMAGE .'
+            }
         }
-      }
+
+        stage('Push Docker Image to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                    kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                    kubectl apply -f java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/service.yml
+                '''
+            }
+        }
     }
 
-    stage('Deploy to Kubernetes') {
-      steps {
-        sh "kubectl apply -f ${DEPLOYMENT_PATH}"
-      }
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
     }
-  }
-
-  post {
-    success {
-      echo '✅ Pipeline executed successfully!'
-    }
-    failure {
-      echo '❌ Pipeline failed!'
-    }
-  }
 }
