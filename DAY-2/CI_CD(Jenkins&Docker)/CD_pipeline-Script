@@ -1,1 +1,19 @@
+pipeline {
+    agent any
 
+    stages {
+        stage('Docker Deploy to Container') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'f98c0884-f648-45d2-be82-edc9dbd600dc', toolName: 'docker') {
+                        // Stop and remove old container if it exists
+                        sh """
+                        docker ps -aq --filter name=shopping-cart | xargs -r docker rm -f
+                        docker run -d --name shopping-cart -p 8070:8070 sanjayharish/shopping:latest
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
